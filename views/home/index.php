@@ -61,11 +61,16 @@
 
 </div>
 
+<!--<pre>-->
+<!--    --><?//= print_r($data) ?>
+<!--</pre>-->
+
 <table class="table">
     <thead>
     <tr>
         <th>#</th>
         <th>Адрес</th>
+        <th>Метро</th>
         <th>Этаж</th>
         <th>Тип дома</th>
         <th>Площадь (общая, жилая, кухня)</th>

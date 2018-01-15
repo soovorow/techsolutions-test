@@ -4,7 +4,9 @@ namespace models;
 
 class Ad extends Model
 {
+    public $url;
     public $address;
+    public $metro;
     public $floor;
     public $building_height;
     public $building_type;

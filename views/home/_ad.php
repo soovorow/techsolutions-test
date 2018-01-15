@@ -7,6 +7,7 @@
 <tr>
     <td><?= $i ?></td>
     <td><?= $model->address ?></td>
+    <td><?= $model->metro ?></td>
     <td><?= $model->floor ?> / <?= $model->building_height ?></td>
     <td><?= $model->building_type ?></td>
     <td>

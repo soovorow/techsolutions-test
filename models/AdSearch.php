@@ -2,6 +2,7 @@
 
 namespace models;
 
+use components\Curl;
 use components\FileCache;
 use DOMDocument;
 use DOMXPath;
@@ -36,9 +37,9 @@ class AdSearch extends Model
         libxml_use_internal_errors(true);
 
         $dom = new DOMDocument();
-        $dom->loadHTML($this->request($url));
+        $dom->loadHTML(Curl::execute($url));
 
-        $table = $this->findDomElementByClass($dom,'results')->item(0);
+        $table = $this->findDomElementByClass($dom, 'results')->item(0);
 
         $data = [];
 
@@ -47,12 +48,16 @@ class AdSearch extends Model
         }
 
         foreach ($table->childNodes as $i => $node) {
-
             if ($this->isValidRow($i, $node)) {
                 $data[] = new Ad($this->getAdSchema($node));
             }
-
         };
+
+        $detail_pages = Curl::executeMultiple($this->getUrlsArrayFromData($data));
+
+        foreach ($detail_pages as $i => $result) {
+            $data[$i]->metro = $this->getMetro($result);
+        }
 
         return $data;
     }
@@ -61,13 +66,14 @@ class AdSearch extends Model
     {
         $cache = new FileCache();
         $cache_id = 'metro';
+        $url = 'https://www.bn.ru/zap_fl_w.phtml?err=0#';
 
         if ($data = $cache->get($cache_id)) {
             return $data;
         };
 
         $dom = new DOMDocument();
-        $dom->loadHTML($this->request('https://www.bn.ru/zap_fl_w.phtml?err=0#'));
+        $dom->loadHTML(Curl::execute($url));
         $select = $dom->getElementById('metro');
 
         $data = [];
@@ -84,14 +90,6 @@ class AdSearch extends Model
         return $data;
     }
 
-    private function findDomElementByClass($dom, $class)
-    {
-        $finder = new DomXPath($dom);
-        $nodes = $finder->query('//*[contains(concat(\' \', normalize-space(@class), \' \'), \' ' . $class . ' \')]');
-
-        return $nodes;
-    }
-
     private function isValidRow($i, $node)
     {
         return $i > 1 && $node->hasChildNodes() ? $node->childNodes->length > 1 : false;
@@ -102,6 +100,7 @@ class AdSearch extends Model
         $i = $node->childNodes->item(0)->attributes->length === 0 ? 2 : 1;
 
         return [
+            'url' => 'https://www.bn.ru' . $node->childNodes->item($i)->getElementsByTagName('a')->item(0)->getAttribute('href'),
             'address' => $node->childNodes->item($i)->nodeValue,
             'floor' => explode('/', $node->childNodes->item($i + 1)->nodeValue)[0],
             'building_height' => explode('/', $node->childNodes->item($i + 1)->nodeValue)[1],
@@ -116,20 +115,32 @@ class AdSearch extends Model
         ];
     }
 
-    private function request($href)
+    private function getMetro($result)
     {
-        $curl = curl_init();
-        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-        curl_setopt($curl, CURLOPT_HEADER, false);
-        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($curl, CURLOPT_URL, $href);
-        curl_setopt($curl, CURLOPT_REFERER, $href);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE);
-        curl_setopt($curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US) AppleWebKit/533.4 (KHTML, like Gecko) Chrome/5.0.375.125 Safari/533.4");
-        $str = curl_exec($curl);
-        curl_close($curl);
-
-        return $str;
+        $dom = new DOMDocument();
+        $dom->loadHTML($result);
+        $metro = $this->findDomElementByClass($dom, 'metro');
+        $result = [];
+        foreach ($metro as $m) {
+            $result[] = $m->nodeValue;
+        }
+        return implode(', ', $result);
     }
 
+    private function findDomElementByClass($dom, $class)
+    {
+        $finder = new DomXPath($dom);
+        $nodes = $finder->query('//*[contains(concat(\' \', normalize-space(@class), \' \'), \' ' . $class . ' \')]');
+
+        return $nodes;
+    }
+
+    private function getUrlsArrayFromData($data)
+    {
+        $urls = [];
+        foreach ($data as $i => $ad) {
+            $urls[$i] = $ad->url;
+        }
+        return $urls;
+    }
 }
